@@ -195,6 +195,41 @@
   @media (prefers-reduced-motion:reduce){
     .dot,.row,.when .min.soon{animation:none}
   }
+  /* compact sizing so everything fits one screen in the two-column layout */
+  @media (min-width:880px){
+    .top{padding-bottom:10px}
+    .place h1{font-size:32px}
+    .place .sub{font-size:13px;margin-top:4px}
+    .clock{font-size:24px}
+    .meta{gap:6px}
+
+    .section{margin-bottom:10px}
+    .section-head{padding:9px 16px}
+    .section-head .stop{font-size:14px}
+
+    .row{padding:7px 16px;gap:12px}
+    .badge{height:28px;min-width:40px;font-size:16px}
+    .dest .name{font-size:17px}
+    .dest .plat{font-size:11.5px}
+    .when{min-width:62px}
+    .when .min{font-size:22px}
+    .when .unit{margin-top:1px}
+    .when .sched,.when .delay{margin-top:2px}
+
+    .wx-body{padding:12px 16px;gap:16px}
+    .wx-now{min-width:190px}
+    .wx-now .ic{width:44px;height:44px}
+    .wx-temp{font-size:32px}
+    .wx-cond{font-size:17px}
+    .wx-detail{font-size:12px}
+    .wx-hours{min-width:250px}
+    .wx-hour{padding:7px 4px;gap:4px}
+    .wx-hour .ic{width:22px;height:22px}
+
+    .nc-body{padding:10px 16px 12px}
+    .nc-head{margin-bottom:8px}
+    .nc-track{height:46px}
+  }
 </style>
 </head>
 <body>
