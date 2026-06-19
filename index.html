@@ -36,9 +36,29 @@
     min-height:100vh;
     display:flex;
     justify-content:center;
+    align-items:flex-start;
     padding:24px 16px 48px;
   }
-  .board{width:100%;max-width:720px}
+  .board{
+    width:100%;max-width:720px;
+    display:grid;grid-template-columns:1fr;
+    grid-template-areas:"top" "sections" "weather" "footer";
+  }
+  .top{grid-area:top}
+  #sections{grid-area:sections}   /* transit first, so it's always on screen */
+  #weather{grid-area:weather}
+  .footer{grid-area:footer}
+  /* wide / landscape monitor: use the width — transit left, weather right */
+  @media (min-width:880px){
+    .board{
+      max-width:1180px;column-gap:20px;
+      grid-template-columns:minmax(360px,1.05fr) 1fr;
+      grid-template-areas:
+        "top      top"
+        "sections weather"
+        "footer   footer";
+    }
+  }
 
   /* ---- header ---- */
   .top{
