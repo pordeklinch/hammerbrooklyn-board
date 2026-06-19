@@ -254,6 +254,44 @@
     .nc-head{margin-bottom:8px}
     .nc-track{height:46px}
   }
+  /* ---- clock mode (full-screen LED clock, red, 24h) ---- */
+  body.mode-clock .board{display:none}
+  #clockOverlay{display:none}
+  body.mode-clock #clockOverlay{display:flex}
+
+  #clockOverlay{
+    position:fixed;inset:0;background:#000;z-index:50;
+    align-items:center;justify-content:center;
+    font-family:"Courier New",monospace;color:#ff2d2d;
+  }
+  #clockOverlay .wx-corner{position:absolute;top:5%;left:4%;display:flex;align-items:center;gap:14px}
+  #clockOverlay .wx-corner svg{width:46px;height:46px;color:#ff2d2d;filter:drop-shadow(0 0 6px rgba(255,45,45,.6))}
+  #clockOverlay .wx-corner .wx-temp{font-size:28px;font-weight:bold;text-shadow:0 0 8px rgba(255,45,45,.85),0 0 18px rgba(255,45,45,.5)}
+
+  #clockOverlay .secs-corner{position:absolute;top:6%;right:4.5%;font-size:4vw;font-weight:bold;opacity:.85;
+    text-shadow:0 0 8px rgba(255,45,45,.8),0 0 18px rgba(255,45,45,.4)}
+
+  #clockOverlay .time-main{
+    font-size:21vw;font-weight:bold;line-height:1;letter-spacing:4px;
+    text-shadow:0 0 14px rgba(255,45,45,.9),0 0 34px rgba(255,45,45,.55),0 0 60px rgba(255,45,45,.3);
+  }
+
+  #clockOverlay .date-corner{position:absolute;bottom:6%;left:4%;font-size:2.4vw;font-weight:bold;
+    letter-spacing:3px;opacity:.9;text-shadow:0 0 8px rgba(255,45,45,.7),0 0 16px rgba(255,45,45,.4)}
+  #clockOverlay .day-corner{position:absolute;bottom:6%;right:4%;font-size:2.4vw;font-weight:bold;
+    letter-spacing:3px;opacity:.9;text-shadow:0 0 8px rgba(255,45,45,.7),0 0 16px rgba(255,45,45,.4)}
+
+  .mode-toggle{
+    position:fixed;width:44px;height:44px;border-radius:50%;z-index:60;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    border:1.5px solid var(--hair-strong);background:rgba(255,255,255,.04);
+    transition:opacity .2s;
+  }
+  .mode-toggle svg{width:18px;height:18px;color:var(--muted)}
+  #toClockBtn{top:18px;right:18px}
+  #toDashBtn{position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
+    border-color:rgba(255,45,45,.5);background:rgba(255,45,45,.06)}
+  #toDashBtn svg{color:#ff2d2d}
 </style>
 </head>
 <body>
@@ -274,6 +312,31 @@
 
     <div class="footer">
       transit <a href="https://v6.db.transport.rest" target="_blank" rel="noopener">v6.db.transport.rest</a> · weather <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · offline timetable © HVV (dl-de/by-2-0)
+    </div>
+  </div>
+
+  <!-- manual switch: dashboard -> clock -->
+  <div class="mode-toggle" id="toClockBtn" title="Switch to clock">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,13.8"/>
+    </svg>
+  </div>
+
+  <!-- full-screen clock mode -->
+  <div id="clockOverlay">
+    <div class="wx-corner">
+      <span id="clockWxIcon"></span>
+      <div class="wx-temp" id="clockWxTemp">–</div>
+    </div>
+    <div class="secs-corner" id="clockSecs">00</div>
+    <div class="time-main" id="clockTime">00:00</div>
+    <div class="date-corner" id="clockDate">—</div>
+    <div class="day-corner" id="clockDay">—</div>
+    <div class="mode-toggle" id="toDashBtn" title="Switch to dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
     </div>
   </div>
 
@@ -744,6 +807,73 @@ function tickClock(){
   
   // 3. Combine them and push to the board
   document.getElementById("clock").textContent = `${dateStr} ${timeStr}`;
+
+  updateClockOverlay(d);
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+
+function updateClockOverlay(d){
+  document.getElementById("clockTime").textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  document.getElementById("clockSecs").textContent = pad2(d.getSeconds());
+
+  const months = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+  const days = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
+  document.getElementById("clockDate").textContent = `${months[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+  document.getElementById("clockDay").textContent = days[d.getDay()];
+
+  const cur = weather.data && weather.data.current;
+  if(cur){
+    const info = wxInfo(cur.weather_code, cur.is_day === 1);
+    document.getElementById("clockWxIcon").innerHTML = ICONS[info.icon];
+    document.getElementById("clockWxTemp").textContent = `${Math.round(cur.temperature_2m)}°`;
+  }
+}
+
+/* ----------------------------- clock-mode automation ----------------------------- */
+const LS_MODE = "hb_mode", LS_CLOCK_FIRED = "hb_clockFiredDate", LS_DASH_FIRED = "hb_dashFiredDate";
+
+function todayStr(d = new Date()){
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+
+function setMode(mode){
+  document.body.classList.toggle("mode-clock", mode === "clock");
+  try{ localStorage.setItem(LS_MODE, mode); }catch(e){}
+  fitToScreen();
+}
+
+// Each trigger fires at most once per calendar day, independent of manual overrides,
+// and "catches up" if the page was reloaded/off through the exact moment it should fire.
+function checkAutoSwitch(){
+  const now = new Date();
+  const today = todayStr(now);
+  const hour = now.getHours();
+  let clockFired, dashFired;
+  try{
+    clockFired = localStorage.getItem(LS_CLOCK_FIRED);
+    dashFired = localStorage.getItem(LS_DASH_FIRED);
+  }catch(e){ clockFired = dashFired = null; }
+
+  if(clockFired !== today){
+    setMode("clock");
+    try{ localStorage.setItem(LS_CLOCK_FIRED, today); }catch(e){}
+  }
+  if(dashFired !== today && hour >= 8){
+    setMode("dashboard");
+    try{ localStorage.setItem(LS_DASH_FIRED, today); }catch(e){}
+  }
+}
+
+function initClockMode(){
+  let saved = null;
+  try{ saved = localStorage.getItem(LS_MODE); }catch(e){}
+  setMode(saved === "clock" ? "clock" : "dashboard");   // restore last mode before checking automation
+  checkAutoSwitch();                                     // may override if today's trigger hasn't run yet
+  setInterval(checkAutoSwitch, 20000);
+
+  document.getElementById("toClockBtn").addEventListener("click", () => setMode("clock"));
+  document.getElementById("toDashBtn").addEventListener("click", () => setMode("dashboard"));
 }
 
 function setStatus(kind, text){
@@ -834,6 +964,7 @@ setInterval(fetchAir, WEATHER_REFRESH_MS);
 
 window.addEventListener("resize", fitToScreen);
 fitToScreen();
+initClockMode();
 </script>
 </body>
 </html>
