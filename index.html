@@ -185,6 +185,24 @@
   .nc-time{font-family:"Roboto Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.02em}
   @media (prefers-reduced-motion:reduce){.nc-fill{transition:none}}
 
+  /* ---- sun & sky box ---- */
+  .tag.sky{background:#c2892f}
+  .sky-body{padding:14px 18px 16px}
+  .sun-arc{position:relative}
+  .sun-arc .arc{width:100%;height:auto;display:block}
+  .sun-ends{display:flex;justify-content:space-between;margin-top:-6px}
+  .se{font-family:"Roboto Mono",monospace;font-size:14px;color:var(--ink)}
+  .se.r{text-align:right}
+  .se small{display:block;font-family:"Barlow Semi Condensed",sans-serif;font-size:10.5px;
+    color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:1px}
+  .sky-tiles{display:flex;gap:10px;margin-top:14px}
+  .tile{flex:1;background:var(--surface-2);border:1px solid var(--hair);border-radius:11px;
+    padding:9px 8px;text-align:center}
+  .t-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+  .t-val{font-family:"Roboto Mono",monospace;font-weight:700;font-size:24px;line-height:1.1;margin-top:4px}
+  .t-val.moon{font-size:22px}
+  .t-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
+
   .empty{padding:22px 18px;color:var(--muted);font-size:16px}
   .footer{margin-top:10px;text-align:center;color:var(--muted);font-size:12px;letter-spacing:.06em}
   .footer a{color:var(--muted)}
@@ -398,11 +416,13 @@ const ICONS = {
 };
 
 let weather = { data:null, error:null };
+let air = { data:null, error:null };
 
 async function fetchWeather(){
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}`
     + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,is_day`
-    + `&hourly=temperature_2m,precipitation_probability,weather_code`
+    + `&hourly=temperature_2m,precipitation_probability,weather_code,uv_index`
+    + `&daily=sunrise,sunset,daylight_duration,uv_index_max`
     + `&minutely_15=precipitation`
     + `&timeformat=unixtime&timezone=Europe%2FBerlin&forecast_days=2`;
   try{
@@ -411,6 +431,19 @@ async function fetchWeather(){
     weather = { data: await r.json(), error: null };
   }catch(err){
     weather = { data: weather.data, error: err.message };   // keep last good data
+  }
+  renderWeather();
+}
+
+async function fetchAir(){
+  const url = `https://air-quality.open-meteo.com/v1/air-quality?latitude=${WX_LAT}&longitude=${WX_LON}`
+    + `&current=european_aqi&timezone=Europe%2FBerlin`;
+  try{
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`air ${r.status}`);
+    air = { data: await r.json(), error: null };
+  }catch(err){
+    air = { data: air.data, error: err.message };
   }
   renderWeather();
 }
@@ -426,6 +459,102 @@ function precipColor(mm){
   if(mm >= 0.2) return "var(--sky)";           // light
   if(mm > 0)    return "rgba(143,193,255,.7)"; // trace
   return "rgba(143,193,255,.5)";
+}
+
+function uvInfo(v){
+  if(v < 3)  return ["Low","#3ddc84"];
+  if(v < 6)  return ["Moderate","#ffd23f"];
+  if(v < 8)  return ["High","#ff9f1c"];
+  if(v < 11) return ["Very high","#ff5a52"];
+  return ["Extreme","#b56bff"];
+}
+function aqiInfo(v){
+  if(v <= 20)  return ["Good","#3ddc84"];
+  if(v <= 40)  return ["Fair","#a8e05f"];
+  if(v <= 60)  return ["Moderate","#ffd23f"];
+  if(v <= 80)  return ["Poor","#ff9f1c"];
+  if(v <= 100) return ["Very poor","#ff5a52"];
+  return ["Extremely poor","#b56bff"];
+}
+function moonPhase(date){
+  const syn = 29.530588853;                      // synodic month (days)
+  const ref = Date.UTC(2000,0,6,18,14) / 86400000;
+  const frac = (((date.getTime()/86400000 - ref) % syn + syn) % syn) / syn;
+  const illum = Math.round((1 - Math.cos(2*Math.PI*frac)) / 2 * 100);
+  const N = [["New moon","🌑"],["Waxing crescent","🌒"],["First quarter","🌓"],
+             ["Waxing gibbous","🌔"],["Full moon","🌕"],["Waning gibbous","🌖"],
+             ["Last quarter","🌗"],["Waning crescent","🌘"]];
+  let i;
+  if(frac < 0.02 || frac > 0.98) i = 0;
+  else if(frac < 0.23) i = 1; else if(frac < 0.27) i = 2;
+  else if(frac < 0.48) i = 3; else if(frac < 0.52) i = 4;
+  else if(frac < 0.73) i = 5; else if(frac < 0.77) i = 6; else i = 7;
+  return { name:N[i][0], emoji:N[i][1], illum };
+}
+
+function buildSky(d, off){
+  const daily = d.daily;
+  if(!daily || !daily.sunrise) return "";
+  const sr = daily.sunrise[0], ss = daily.sunset[0], now = d.current.time;
+  const p = Math.max(0, Math.min(1, (now - sr) / (ss - sr)));
+  const night = now < sr || now > ss;
+
+  // sun-path arc geometry (elliptical, viewBox 0 0 320 96)
+  const cx=160, cy=80, rx=136, ry=66;
+  const th = Math.PI - Math.PI*p;
+  const sx = (cx + rx*Math.cos(th)).toFixed(1), sy = (cy - ry*Math.sin(th)).toFixed(1);
+  const travelled = (!night && p>0 && p<1)
+    ? `<path d="M24,80 A${rx},${ry} 0 0 1 ${sx},${sy}" fill="none" stroke="#f5b53e" stroke-width="3" stroke-linecap="round"/>` : "";
+  const sun = `<circle cx="${sx}" cy="${sy}" r="7" fill="${night?'#5a6473':'#ffd23f'}" ${night?'':'stroke="rgba(255,210,63,.3)" stroke-width="6"'}/>`;
+  const arc = `<svg viewBox="0 0 320 96" class="arc">
+      <line x1="14" y1="80" x2="306" y2="80" stroke="var(--hair)" stroke-width="1"/>
+      <path d="M24,80 A${rx},${ry} 0 0 1 296,80" fill="none" stroke="var(--hair-strong)" stroke-width="2" stroke-dasharray="3 5"/>
+      ${travelled}${sun}</svg>`;
+
+  const dl = daily.daylight_duration ? daily.daylight_duration[0] : (ss - sr);
+  const dh = Math.floor(dl/3600), dm = Math.round((dl%3600)/60);
+
+  // UV: current hour value + today's peak
+  let uvNow = 0;
+  const H = d.hourly;
+  if(H && H.uv_index){
+    let i = H.time.findIndex(t => t > now);
+    i = (i <= 0) ? 0 : i - 1;
+    uvNow = H.uv_index[i] || 0;
+  }
+  const uvPeak = daily.uv_index_max ? daily.uv_index_max[0] : uvNow;
+  const [uvLabel, uvCol] = uvInfo(uvNow);
+
+  // Air quality
+  let aqiHtml = `<div class="t-val" style="color:var(--muted)">–</div><div class="t-sub">unavailable</div>`;
+  if(air.data && air.data.current && typeof air.data.current.european_aqi === "number"){
+    const v = Math.round(air.data.current.european_aqi);
+    const [al, ac] = aqiInfo(v);
+    aqiHtml = `<div class="t-val" style="color:${ac}">${v}</div><div class="t-sub">${al}</div>`;
+  }
+
+  const mp = moonPhase(new Date());
+
+  return `<div class="section">
+    <div class="section-head">
+      <span class="tag sky">Sun &amp; Sky</span>
+      <span class="stop">${dh} h ${dm} min daylight</span>
+    </div>
+    <div class="sky-body">
+      <div class="sun-arc">
+        ${arc}
+        <div class="sun-ends">
+          <span class="se">↑ ${localHM(sr, off)}<small>sunrise</small></span>
+          <span class="se r">↓ ${localHM(ss, off)}<small>sunset</small></span>
+        </div>
+      </div>
+      <div class="sky-tiles">
+        <div class="tile"><div class="t-label">UV index</div><div class="t-val" style="color:${uvCol}">${Math.round(uvNow)}</div><div class="t-sub">${uvLabel} · peak ${Math.round(uvPeak)}</div></div>
+        <div class="tile"><div class="t-label">Air quality</div>${aqiHtml}</div>
+        <div class="tile"><div class="t-label">Moon</div><div class="t-val moon">${mp.emoji}</div><div class="t-sub">${mp.name} · ${mp.illum}%</div></div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function buildNowcast(d, cur, off){
@@ -522,7 +651,7 @@ function renderWeather(){
     </div>
   </div>`;
 
-  host.innerHTML = weatherCard + buildNowcast(d, cur, off);
+  host.innerHTML = buildSky(d, off) + weatherCard + buildNowcast(d, cur, off);
   fitToScreen();
 }
 
@@ -694,7 +823,9 @@ setInterval(poll, REFRESH_MS);
 
 renderWeather();                // shows "Loading weather…" until first fetch lands
 fetchWeather();
+fetchAir();
 setInterval(fetchWeather, WEATHER_REFRESH_MS);
+setInterval(fetchAir, WEATHER_REFRESH_MS);
 
 window.addEventListener("resize", fitToScreen);
 fitToScreen();
