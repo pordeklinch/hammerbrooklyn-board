@@ -440,7 +440,7 @@ async function fetchWeather(){
 
 async function fetchAir(){
   const url = `https://air-quality.open-meteo.com/v1/air-quality?latitude=${WX_LAT}&longitude=${WX_LON}`
-    + `&hourly=european_aqi&timeformat=unixtime&timezone=Europe%2FBerlin`;
+    + `&hourly=pm2_5&timeformat=unixtime&timezone=Europe%2FBerlin`;
   try{
     const r = await fetch(url);
     if(!r.ok) throw new Error(`air ${r.status}`);
@@ -471,13 +471,13 @@ function uvInfo(v){
   if(v < 11) return ["Very high","#ff5a52"];
   return ["Extreme","#b56bff"];
 }
-function aqiInfo(v){
-  if(v <= 20)  return ["Good","#3ddc84"];
-  if(v <= 40)  return ["Fair","#a8e05f"];
-  if(v <= 60)  return ["Moderate","#ffd23f"];
-  if(v <= 80)  return ["Poor","#ff9f1c"];
-  if(v <= 100) return ["Very poor","#ff5a52"];
-  return ["Extremely poor","#b56bff"];
+function pm25Info(v){   // PM2.5 µg/m³ -> [label, colour] (IQAir / US-AQI style)
+  if(v <= 12)    return ["Good","#4ec85a"];
+  if(v <= 35.4)  return ["Moderate","#f3d63f"];
+  if(v <= 55.4)  return ["Sensitive","#ff9e42"];
+  if(v <= 150.4) return ["Unhealthy","#fa5a52"];
+  if(v <= 250.4) return ["Very unhealthy","#b06cd6"];
+  return ["Hazardous","#c0556a"];
 }
 function moonPhase(date){
   const syn = 29.530588853;                      // synodic month (days)
@@ -530,17 +530,17 @@ function buildSky(d, off){
   const uvPeak = daily.uv_index_max ? daily.uv_index_max[0] : uvNow;
   const [uvLabel, uvCol] = uvInfo(uvNow);
 
-  // Air quality — read the current hour from the hourly series
-  let aqiHtml = `<div class="t-val" style="color:var(--muted)">–</div><div class="t-sub">unavailable</div>`;
-  if(air.data && air.data.hourly && Array.isArray(air.data.hourly.european_aqi)){
-    const at = air.data.hourly.time, av = air.data.hourly.european_aqi;
+  // PM2.5 — read the current hour from the hourly series, colour by health level
+  let pmHtml = `<div class="t-val" style="color:var(--muted)">–</div><div class="t-sub">unavailable</div>`;
+  if(air.data && air.data.hourly && Array.isArray(air.data.hourly.pm2_5)){
+    const at = air.data.hourly.time, av = air.data.hourly.pm2_5;
     let i = at.findIndex(t => t > now);
     i = (i <= 0) ? 0 : i - 1;
     const v = av[i];
     if(typeof v === "number"){
       const r = Math.round(v);
-      const [al, ac] = aqiInfo(r);
-      aqiHtml = `<div class="t-val" style="color:${ac}">${r}</div><div class="t-sub">${al}</div>`;
+      const [pl, pc] = pm25Info(v);
+      pmHtml = `<div class="t-val" style="color:${pc}">${r}</div><div class="t-sub" style="color:${pc}">${pl}</div>`;
     }
   }
 
@@ -555,7 +555,7 @@ function buildSky(d, off){
       ${bar}
       <div class="sky-tiles">
         <div class="tile"><div class="t-label">UV index</div><div class="t-val" style="color:${uvCol}">${Math.round(uvNow)}</div><div class="t-sub">${uvLabel} · peak ${Math.round(uvPeak)}</div></div>
-        <div class="tile"><div class="t-label">Air quality</div>${aqiHtml}</div>
+        <div class="tile"><div class="t-label">PM2.5</div>${pmHtml}</div>
         <div class="tile"><div class="t-label">Moon</div><div class="t-val moon">${mp.emoji}</div><div class="t-sub">${mp.name} · ${mp.illum}%</div></div>
       </div>
     </div>
