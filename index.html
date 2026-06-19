@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hammerbrook — live departures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e13;            /* night platform */
+    --surface:#12161d;
+    --surface-2:#161b24;
+    --hair:rgba(255,255,255,.08);
+    --hair-strong:rgba(255,255,255,.16);
+    --ink:#e9eef4;
+    --muted:#8b95a6;
+    --amber:#ffb02e;         /* the one bold element: live countdown */
+    --amber-dim:#7a5a1f;
+    --sky:#8fc1ff;           /* weather: a quieter, cooler accent */
+    --wx:#2f6fd0;
+    --s-green:#00a14b;       /* Hamburg S-Bahn */
+    --bus-red:#e2001a;       /* HVV MetroBus */
+    --warn:#ff5a52;
+    --ok:#3ddc84;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #161d28 0%, var(--bg) 60%) fixed;
+    color:var(--ink);
+    font-family:"Barlow Semi Condensed",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:24px 16px 48px;
+  }
+  .board{width:100%;max-width:720px}
+
+  /* ---- header ---- */
+  .top{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    gap:16px;padding:4px 4px 16px;
+  }
+  .place{line-height:.95}
+  .place h1{
+    margin:0;font-weight:700;font-size:42px;letter-spacing:.5px;
+  }
+  .place .sub{
+    margin-top:6px;color:var(--muted);font-size:14px;
+    text-transform:uppercase;letter-spacing:.18em;
+  }
+  .meta{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .clock{
+    font-family:"Roboto Mono",monospace;font-size:30px;font-weight:500;
+    font-variant-numeric:tabular-nums;letter-spacing:1px;color:var(--ink);
+  }
+  .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.16em}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);
+    box-shadow:0 0 0 0 rgba(61,220,132,.6);animation:pulse 2.4s infinite}
+  .dot.bad{background:var(--warn);animation:none}
+  .dot.wait{background:var(--amber);animation:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,132,.5)}70%{box-shadow:0 0 0 7px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}
+
+  /* ---- a board section ---- */
+  .section{
+    background:var(--surface);
+    border:1px solid var(--hair);
+    border-radius:14px;
+    overflow:hidden;
+    margin-bottom:16px;
+  }
+  .section-head{
+    display:flex;align-items:center;gap:12px;
+    padding:13px 18px;
+    background:var(--surface-2);
+    border-bottom:1px solid var(--hair);
+  }
+  .section-head .tag{
+    font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    padding:3px 9px;border-radius:5px;color:#fff;
+  }
+  .tag.s{background:var(--s-green)}
+  .tag.bus{background:var(--bus-red)}
+  .section-head .stop{color:var(--muted);font-size:15px;letter-spacing:.02em}
+  .section-head .modepill{margin-left:auto;font-size:11px;font-weight:700;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--amber);border:1px solid var(--amber-dim);
+    border-radius:5px;padding:2px 8px;white-space:nowrap}
+
+  .rows{display:flex;flex-direction:column}
+  .row{
+    display:grid;
+    grid-template-columns:56px 1fr auto;
+    align-items:center;gap:14px;
+    padding:12px 18px;
+    border-bottom:1px solid var(--hair);
+    animation:fade .35s ease;
+  }
+  .row:last-child{border-bottom:none}
+  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+  /* line badge — authentic HVV roundels */
+  .badge{
+    font-family:"Barlow Semi Condensed";font-weight:700;font-size:19px;
+    color:#fff;border-radius:7px;height:34px;min-width:46px;padding:0 6px;
+    display:flex;align-items:center;justify-content:center;letter-spacing:.5px;
+  }
+  .badge.s{background:var(--s-green)}
+  .badge.bus{background:var(--bus-red);border-radius:50px}
+
+  .dest{min-width:0}
+  .dest .name{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dest .plat{font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+  .dest .name.cancel{color:var(--warn);text-decoration:line-through}
+
+  .when{text-align:right;display:flex;flex-direction:column;align-items:flex-end;min-width:74px}
+  .when .min{
+    font-family:"Roboto Mono",monospace;font-weight:700;font-size:28px;line-height:1;
+    color:var(--amber);font-variant-numeric:tabular-nums;
+  }
+  .when .min.soon{animation:blink 1.1s steps(2,start) infinite}
+  .when .min.now{color:var(--ok)}
+  .when .unit{font-size:11px;color:var(--amber-dim);text-transform:uppercase;letter-spacing:.12em;margin-top:3px}
+  .when .sched{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--muted);margin-top:4px}
+  .when .delay{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--warn);font-weight:700;margin-top:4px}
+  @keyframes blink{50%{opacity:.35}}
+
+  /* ---- weather panel ---- */
+  .tag.wx{background:var(--wx)}
+  .wx-body{display:flex;align-items:center;gap:20px;padding:16px 18px;flex-wrap:wrap}
+  .wx-now{display:flex;align-items:center;gap:14px;min-width:210px}
+  .wx-now .ic{width:54px;height:54px;color:var(--sky);flex:none}
+  .ic svg{width:100%;height:100%;display:block}
+  .wx-temp{font-family:"Roboto Mono",monospace;font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .wx-cond{font-size:19px;font-weight:600;margin-top:3px}
+  .wx-detail{color:var(--muted);font-size:13px;margin-top:3px;letter-spacing:.01em}
+  .wx-hours{display:flex;gap:8px;flex:1;min-width:280px;justify-content:space-between}
+  .wx-hour{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;
+    background:var(--surface-2);border:1px solid var(--hair);border-radius:11px;padding:9px 4px}
+  .wx-hour .h{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--muted);letter-spacing:.04em}
+  .wx-hour .ic{width:26px;height:26px;color:var(--sky)}
+  .wx-hour .t{font-family:"Roboto Mono",monospace;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
+  .wx-hour .p{font-family:"Roboto Mono",monospace;font-size:11px;color:var(--sky)}
+  .wx-hour .p.dry{visibility:hidden}
+
+  /* ---- rain nowcast strip ---- */
+  .nc-body{padding:14px 18px 16px}
+  .nc-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:12px}
+  .nc-headline{font-size:16px;font-weight:600}
+  .nc-headline.dry{color:var(--ok)}
+  .nc-headline.wet{color:var(--sky)}
+  .nc-sub{color:var(--muted);font-size:12px;font-family:"Roboto Mono",monospace;white-space:nowrap}
+  .nc-bars{display:flex;align-items:flex-end;gap:7px}
+  .nc-slot{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+  .nc-track{position:relative;width:100%;max-width:34px;height:58px;background:var(--surface-2);
+    border:1px solid var(--hair);border-radius:6px;overflow:hidden}
+  .nc-fill{position:absolute;left:0;right:0;bottom:0;transition:height .4s ease}
+  .nc-time{font-family:"Roboto Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:.02em}
+  @media (prefers-reduced-motion:reduce){.nc-fill{transition:none}}
+
+  .empty{padding:22px 18px;color:var(--muted);font-size:16px}
+  .footer{margin-top:10px;text-align:center;color:var(--muted);font-size:12px;letter-spacing:.06em}
+  .footer a{color:var(--muted)}
+
+  @media (max-width:480px){
+    .place h1{font-size:34px}
+    .clock{font-size:24px}
+    .dest .name{font-size:18px}
+    .when .min{font-size:24px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .dot,.row,.when .min.soon{animation:none}
+  }
+</style>
+</head>
+<body>
+  <div class="board">
+    <div class="top">
+      <div class="place">
+        <h1>Hammerbrook</h1>
+        <div class="sub">live departures · HVV / DB</div>
+      </div>
+      <div class="meta">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="status"><span class="dot wait" id="dot"></span><span id="statusText">connecting…</span></div>
+      </div>
+    </div>
+
+    <div id="weather"></div>
+    <div id="sections"></div>
+
+    <div class="footer">
+      transit <a href="https://v6.db.transport.rest" target="_blank" rel="noopener">v6.db.transport.rest</a> · weather <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · offline timetable © HVV (dl-de/by-2-0)
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+/* ----------------------------- config ----------------------------- */
+const API = "https://v6.db.transport.rest";
+const REFRESH_MS = 30000;       // poll the API every 30s
+const LOOKAHEAD_MIN = 60;       // fetch this far ahead
+const MAX_ROWS = 3;             // next N departures shown per transit board
+
+/* weather — Open-Meteo (free, no key, CORS-enabled) */
+const WX_LAT = 53.5464, WX_LON = 10.0236;   // Hammerbrook (City Süd)
+const WX_NAME = "Hammerbrook (City Süd)";
+const WEATHER_REFRESH_MS = 10 * 60 * 1000;  // weather changes slowly: poll every 10 min
+const WX_HOURS = 6;                         // how many upcoming hours to show
+const WX_NOWCAST_STEPS = 8;                 // 15-min nowcast slots to show (8 = next 2 h)
+
+/* offline fallback — scheduled timetable baked from the HVV GTFS feed.
+   Generate hammerbrook_schedule.json with build_hvv_fallback.py and place it
+   next to this file (or point SCHEDULE_URL at the hosted copy). */
+const SCHEDULE_URL = "hammerbrook_schedule.json";
+const SCHED_LOOK_MIN = 90;                  // how far ahead to show scheduled departures
+
+const BOARDS = [
+  {
+    key: "s",                               // matches a board key in the schedule JSON
+    kind: "s",                              // styling: S-Bahn green
+    tag: "S-Bahn",
+    search: "Hammerbrook City",             // resolved to a stop id on load
+    stopName: "Hammerbrook (City Süd)",
+    lines: ["S3", "S5"],
+    product: "suburban",
+    dirs: ["Pinneberg", "Elbgaustraße", "Altona"],   // city / NW-bound only; [] = both ways
+  },
+  {
+    key: "bus",
+    kind: "bus",                            // styling: MetroBus red
+    tag: "Bus",
+    search: "S Hammerbrook (Nord)",
+    stopName: "S Hammerbrook (Nord)",
+    lines: ["12"],
+    product: "bus",
+    dirs: ["Blankenese", "Hauptbahnhof"],   // toward Hbf = the Blankenese-bound direction
+  },
+];
+
+const ALL_PRODUCTS = ["nationalExpress","national","regionalExpress","regional",
+  "suburban","bus","ferry","subway","tram","taxi"];
+
+/* ----------------------------- helpers ----------------------------- */
+const lineKey = (s) => s.toLowerCase().replace(/metrobus|bus/g,"").replace(/\s+/g,"").trim();
+const dirOk = (dest, dirs) => !dirs || dirs.length === 0
+  || dirs.some(k => (dest || "").toLowerCase().includes(k.toLowerCase()));
+
+function productParams(want){
+  return ALL_PRODUCTS.map(p => `${p}=${p===want ? "true":"false"}`).join("&");
+}
+
+async function resolveStopId(query, want){
+  const url = `${API}/locations?query=${encodeURIComponent(query)}&results=10&poi=false&addresses=false&linesOfStops=false`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`locations ${res.status}`);
+  const list = await res.json();
+  const hit = list.find(x => (x.type==="stop"||x.type==="station") && x.products && x.products[want])
+           || list.find(x => x.type==="stop"||x.type==="station");
+  if(!hit) throw new Error(`no stop for "${query}"`);
+  return { id: String(hit.id), name: hit.name };
+}
+
+async function fetchDepartures(stopId, want){
+  const url = `${API}/stops/${stopId}/departures?duration=${LOOKAHEAD_MIN}&results=40&linesOfStops=false&remarks=false&language=en&${productParams(want)}`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`departures ${res.status}`);
+  const data = await res.json();
+  const raw = Array.isArray(data) ? data : (data.departures || []);
+  return raw.map(d => {
+    const line = d.line || {};
+    const when = d.when || d.plannedWhen || null;
+    return {
+      line: line.name || "?",
+      direction: d.direction || (d.destination && d.destination.name) || "—",
+      whenMs: when ? new Date(when).getTime() : null,
+      plannedMs: d.plannedWhen ? new Date(d.plannedWhen).getTime() : null,
+      delayMin: (typeof d.delay === "number") ? Math.round(d.delay/60) : null,
+      platform: d.platform || d.plannedPlatform || null,
+      cancelled: !!d.cancelled,
+    };
+  });
+}
+
+function filterAndSort(deps, wanted, dirs){
+  const keys = new Set(wanted.map(lineKey));
+  return deps
+    .filter(d => keys.has(lineKey(d.line)))
+    .filter(d => dirOk(d.direction, dirs))
+    .filter(d => d.whenMs !== null)
+    .sort((a,b) => a.whenMs - b.whenMs);
+}
+
+const fmtTime = (ms) => {
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+};
+
+/* ----------------------------- weather ----------------------------- */
+// WMO weather code -> [label, icon key]
+const WX_MAP = {
+  0:["Clear","sun"],1:["Mainly clear","cloudSun"],2:["Partly cloudy","cloudSun"],3:["Overcast","cloud"],
+  45:["Fog","fog"],48:["Rime fog","fog"],
+  51:["Light drizzle","drizzle"],53:["Drizzle","drizzle"],55:["Heavy drizzle","drizzle"],
+  56:["Freezing drizzle","drizzle"],57:["Freezing drizzle","drizzle"],
+  61:["Light rain","rain"],63:["Rain","rain"],65:["Heavy rain","rain"],
+  66:["Freezing rain","rain"],67:["Freezing rain","rain"],
+  71:["Light snow","snow"],73:["Snow","snow"],75:["Heavy snow","snow"],77:["Snow grains","snow"],
+  80:["Rain showers","rain"],81:["Rain showers","rain"],82:["Heavy showers","rain"],
+  85:["Snow showers","snow"],86:["Snow showers","snow"],
+  95:["Thunderstorm","thunder"],96:["Thunderstorm","thunder"],99:["Thunderstorm","thunder"],
+};
+function wxInfo(code, isDay){
+  const [label, icon] = WX_MAP[code] || ["—","cloud"];
+  let key = icon;
+  if(icon === "sun" && !isDay) key = "moon";
+  if(icon === "cloudSun" && !isDay) key = "cloudMoon";
+  return { label, icon: key };
+}
+
+const A = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+const CLOUD = '<path d="M7 17.5h9.3a3.3 3.3 0 0 0 .2-6.6 4.7 4.7 0 0 0-9-.6A3.6 3.6 0 0 0 7 17.5Z"/>';
+const ICONS = {
+  sun:`<svg ${A}><circle cx="12" cy="12" r="4.1"/><line x1="12" y1="2.5" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="21.5" y2="12"/><line x1="5.3" y1="5.3" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="18.7" y2="18.7"/><line x1="5.3" y1="18.7" x2="6.7" y2="17.3"/><line x1="17.3" y1="6.7" x2="18.7" y2="5.3"/></svg>`,
+  moon:`<svg ${A}><path d="M20 13.5A7.5 7.5 0 1 1 10.5 4 6 6 0 0 0 20 13.5Z"/></svg>`,
+  cloud:`<svg ${A}>${CLOUD}</svg>`,
+  cloudSun:`<svg ${A}><circle cx="8" cy="7.5" r="2.4"/><line x1="8" y1="2.8" x2="8" y2="4"/><line x1="3.4" y1="7.5" x2="4.6" y2="7.5"/><line x1="4.6" y1="4.1" x2="5.5" y2="5"/><line x1="11.4" y1="4.1" x2="10.5" y2="5"/><path d="M8 18.5h8.3a3 3 0 0 0 .2-6 4.3 4.3 0 0 0-8.1-.4A3.3 3.3 0 0 0 8 18.5Z"/></svg>`,
+  cloudMoon:`<svg ${A}><path d="M15 4.2a3.6 3.6 0 1 0 2.7 5.4A4.6 4.6 0 0 1 15 4.2Z"/><path d="M7 18.5h8.3a3 3 0 0 0 .2-6 4.3 4.3 0 0 0-8.1-.4A3.3 3.3 0 0 0 7 18.5Z"/></svg>`,
+  fog:`<svg ${A}>${CLOUD}<line x1="6" y1="20" x2="15" y2="20"/><line x1="9" y1="22.5" x2="18" y2="22.5"/></svg>`,
+  rain:`<svg ${A}>${CLOUD}<line x1="9" y1="19.5" x2="8" y2="22.2"/><line x1="13" y1="19.5" x2="12" y2="22.2"/><line x1="16.6" y1="19.5" x2="15.6" y2="22.2"/></svg>`,
+  drizzle:`<svg ${A}>${CLOUD}<line x1="10" y1="19.8" x2="9.5" y2="21.3"/><line x1="14" y1="19.8" x2="13.5" y2="21.3"/></svg>`,
+  snow:`<svg ${A}>${CLOUD}<circle cx="9.5" cy="20.6" r=".85" fill="currentColor" stroke="none"/><circle cx="13" cy="21.6" r=".85" fill="currentColor" stroke="none"/><circle cx="16" cy="20.6" r=".85" fill="currentColor" stroke="none"/></svg>`,
+  thunder:`<svg ${A}>${CLOUD}<polyline points="13,18.2 10.4,21.4 12.4,21.4 9.8,24.4"/></svg>`,
+};
+
+let weather = { data:null, error:null };
+
+async function fetchWeather(){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${WX_LAT}&longitude=${WX_LON}`
+    + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,is_day`
+    + `&hourly=temperature_2m,precipitation_probability,weather_code`
+    + `&minutely_15=precipitation`
+    + `&timeformat=unixtime&timezone=Europe%2FBerlin&forecast_days=2`;
+  try{
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`weather ${r.status}`);
+    weather = { data: await r.json(), error: null };
+  }catch(err){
+    weather = { data: weather.data, error: err.message };   // keep last good data
+  }
+  renderWeather();
+}
+
+function localHM(t, off){
+  const d = new Date((t + off) * 1000);
+  return String(d.getUTCHours()).padStart(2,"0") + ":" + String(d.getUTCMinutes()).padStart(2,"0");
+}
+
+function precipColor(mm){
+  if(mm >= 2.5) return "#8a6bff";              // heavy
+  if(mm >= 1)   return "#3f7fe0";              // moderate
+  if(mm >= 0.2) return "var(--sky)";           // light
+  if(mm > 0)    return "rgba(143,193,255,.7)"; // trace
+  return "rgba(143,193,255,.5)";
+}
+
+function buildNowcast(d, cur, off){
+  const M = d.minutely_15;
+  if(!M || !M.time || !M.precipitation) return "";   // not available for this point
+  const start = Math.max(0, M.time.findIndex(t => t >= cur.time));
+  const slots = [];
+  for(let i = start; i < start + WX_NOWCAST_STEPS && i < M.time.length; i++){
+    slots.push({ t: M.time[i], mm: M.precipitation[i] || 0 });
+  }
+  if(!slots.length) return "";
+
+  const peakMm = Math.max(...slots.map(s => s.mm));
+  const firstWet = slots.findIndex(s => s.mm >= 0.1);
+
+  const bars = slots.map(s => {
+    const h = s.mm > 0 ? Math.min(100, Math.max(12, (s.mm / 1.5) * 100)) : 0;
+    const fill = h > 0
+      ? `<div class="nc-fill" style="height:${h}%;background:${precipColor(s.mm)}"></div>`
+      : "";
+    return `<div class="nc-slot"><div class="nc-track">${fill}</div><div class="nc-time">${localHM(s.t, off)}</div></div>`;
+  }).join("");
+
+  let headline, cls;
+  if(firstWet === -1){
+    headline = "Dry — no rain expected";
+    cls = "dry";
+  } else {
+    headline = `${peakMm < 0.3 ? "Light rain possible" : "Rain likely"} from ${localHM(slots[firstWet].t, off)}`;
+    cls = "wet";
+  }
+  const sub = peakMm > 0 ? `peak ${peakMm.toFixed(1)} mm / 15 min` : "next 2 hours";
+
+  return `<div class="section">
+    <div class="section-head">
+      <span class="tag wx">Rain nowcast</span>
+      <span class="stop">next 2 hours · 15-min steps</span>
+    </div>
+    <div class="nc-body">
+      <div class="nc-head">
+        <span class="nc-headline ${cls}">${headline}</span>
+        <span class="nc-sub">${sub}</span>
+      </div>
+      <div class="nc-bars">${bars}</div>
+    </div>
+  </div>`;
+}
+
+function renderWeather(){
+  const host = document.getElementById("weather");
+  const d = weather.data;
+  if(!d){
+    host.innerHTML = `<div class="section">
+      <div class="section-head"><span class="tag wx">Weather</span><span class="stop">${WX_NAME}</span></div>
+      <div class="empty">${weather.error ? "Weather unavailable — "+weather.error : "Loading weather…"}</div>
+    </div>`;
+    return;
+  }
+  const cur = d.current, off = d.utc_offset_seconds || 0, H = d.hourly;
+  const ci = wxInfo(cur.weather_code, cur.is_day === 1);
+
+  const start = Math.max(0, H.time.findIndex(t => t >= cur.time));
+  let chips = "";
+  for(let i = start; i < start + WX_HOURS && i < H.time.length; i++){
+    const hr = new Date((H.time[i] + off) * 1000).getUTCHours();
+    const hi = wxInfo(H.weather_code[i], hr >= 6 && hr <= 20);
+    const p = H.precipitation_probability ? H.precipitation_probability[i] : 0;
+    chips += `<div class="wx-hour">
+      <div class="h">${String(hr).padStart(2,"0")}</div>
+      <div class="ic">${ICONS[hi.icon]}</div>
+      <div class="t">${Math.round(H.temperature_2m[i])}°</div>
+      <div class="p ${p ? "" : "dry"}">${p || 0}%</div>
+    </div>`;
+  }
+
+  const detail = `Feels ${Math.round(cur.apparent_temperature)}° · Wind ${Math.round(cur.wind_speed_10m)} km/h · Humidity ${cur.relative_humidity_2m}%`
+    + (cur.precipitation > 0 ? ` · Rain ${cur.precipitation} mm` : "");
+
+  const weatherCard = `<div class="section">
+    <div class="section-head">
+      <span class="tag wx">Weather</span>
+      <span class="stop">${WX_NAME}${weather.error ? " · last known" : ""}</span>
+    </div>
+    <div class="wx-body">
+      <div class="wx-now">
+        <div class="ic">${ICONS[ci.icon]}</div>
+        <div>
+          <div class="wx-temp">${Math.round(cur.temperature_2m)}°</div>
+          <div class="wx-cond">${ci.label}</div>
+          <div class="wx-detail">${detail}</div>
+        </div>
+      </div>
+      <div class="wx-hours">${chips}</div>
+    </div>
+  </div>`;
+
+  host.innerHTML = weatherCard + buildNowcast(d, cur, off);
+}
+
+/* ----------------------------- state ----------------------------- */
+const state = BOARDS.map(b => ({ ...b, id:null, deps:[], error:null, resolvedName:null }));
+
+/* ----------------------------- render ----------------------------- */
+function rowHtml(b, d){
+  const mins = Math.round((d.whenMs - Date.now())/60000);
+  let minHtml;
+  if(d.cancelled){
+    minHtml = `<div class="min" style="color:var(--warn);font-size:20px">cancel</div>`;
+  } else if(mins <= 0){
+    minHtml = `<div class="min now soon">now</div><div class="unit">boarding</div>`;
+  } else {
+    minHtml = `<div class="min ${mins<=2?"soon":""}">${mins}</div><div class="unit">min</div>`;
+  }
+  let sub = "";
+  if(d.delayMin && d.delayMin > 0){
+    sub = `<div class="delay">+${d.delayMin} · ${fmtTime(d.plannedMs ?? d.whenMs)}</div>`;
+  } else {
+    sub = `<div class="sched">${fmtTime(d.plannedMs ?? d.whenMs)}</div>`;
+  }
+  const plat = d.platform ? `<div class="plat">Platform ${d.platform}</div>` : "";
+  return `
+    <div class="row">
+      <div class="badge ${b.kind}">${d.line.replace(/^Bus\s*/i,"").replace(/^Metrobus\s*/i,"")}</div>
+      <div class="dest">
+        <div class="name ${d.cancelled?"cancel":""}">${d.direction}</div>
+        ${plat}
+      </div>
+      <div class="when">${minHtml}${sub}</div>
+    </div>`;
+}
+
+function render(){
+  const host = document.getElementById("sections");
+  host.innerHTML = state.map(b => {
+    const live = b.deps.filter(d => Math.round((d.whenMs-Date.now())/60000) >= -1).slice(0, MAX_ROWS);
+    let body;
+    if(b.error){
+      body = `<div class="empty">Can't reach the live service — ${b.error}. Retrying…</div>`;
+    } else if(live.length === 0){
+      body = `<div class="empty">No ${b.lines.join("/")} departures right now.</div>`;
+    } else {
+      body = `<div class="rows">${live.map(d => rowHtml(b,d)).join("")}</div>`;
+    }
+    return `
+      <div class="section">
+        <div class="section-head">
+          <span class="tag ${b.kind}">${b.tag}</span>
+          <span class="stop">${b.resolvedName || b.stopName}</span>
+          ${b.mode === "scheduled" ? '<span class="modepill">scheduled</span>' : ''}
+        </div>
+        ${body}
+      </div>`;
+  }).join("");
+}
+
+function tickClock(){
+  const d = new Date();
+  document.getElementById("clock").textContent =
+    [d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,"0")).join(":");
+}
+
+function setStatus(kind, text){
+  const dot = document.getElementById("dot");
+  dot.className = "dot" + (kind==="ok" ? "" : kind==="bad" ? " bad" : " wait");
+  document.getElementById("statusText").textContent = text;
+}
+
+/* ----------------------------- offline fallback ----------------------------- */
+let SCHEDULE = null;
+async function loadSchedule(){
+  try{
+    const r = await fetch(SCHEDULE_URL, { cache: "no-store" });
+    if(r.ok) SCHEDULE = await r.json();
+  }catch(e){ /* no fallback available — board will just show the live error */ }
+}
+
+const ymd = (d) => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+
+function schedDep(line, head, awayMin){
+  const whenMs = Date.now() + awayMin * 60000;
+  return { line, direction: head, whenMs, plannedMs: whenMs, delayMin: null, platform: null, cancelled: false };
+}
+
+// Compute the next scheduled departures for a board from the baked timetable.
+function scheduledDeps(key, lines, dirs){
+  if(!SCHEDULE || !SCHEDULE.boards || !SCHEDULE.boards[key]) return null;
+  const board = SCHEDULE.boards[key], svc = SCHEDULE.services || {};
+  const now = new Date();
+  const today = ymd(now), yest = ymd(new Date(now.getTime() - 86400000));
+  const isOn = (s, day) => Array.isArray(svc[s]) && svc[s].includes(day);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const want = new Set(lines.map(lineKey));
+  const out = [];
+  for(const [T, line, head, s] of board.departures){
+    if(!want.has(lineKey(line))) continue;
+    if(!dirOk(head, dirs)) continue;
+    if(isOn(s, today) && T >= nowMin && T <= nowMin + SCHED_LOOK_MIN)
+      out.push(schedDep(line, head, T - nowMin));
+    if(T >= 1440 && isOn(s, yest)){                 // trip after midnight = previous service day
+      const wall = T - 1440;
+      if(wall >= nowMin && wall <= nowMin + SCHED_LOOK_MIN)
+        out.push(schedDep(line, head, wall - nowMin));
+    }
+  }
+  out.sort((a, b) => a.whenMs - b.whenMs);
+  const seen = new Set(), ded = [];
+  for(const d of out){
+    const k = d.line + "|" + d.direction + "|" + Math.round((d.whenMs - Date.now()) / 60000);
+    if(!seen.has(k)){ seen.add(k); ded.push(d); }
+  }
+  return ded;
+}
+
+/* ----------------------------- loop ----------------------------- */
+async function poll(){
+  let live = 0, sched = 0, fail = 0;
+  for(const b of state){
+    try{
+      if(!b.id){
+        const r = await resolveStopId(b.search, b.product);
+        b.id = r.id; b.resolvedName = r.name;
+      }
+      b.deps = filterAndSort(await fetchDepartures(b.id, b.product), b.lines, b.dirs);
+      b.error = null; b.mode = "live"; live++;
+    }catch(err){
+      const sd = scheduledDeps(b.key, b.lines, b.dirs);   // try the baked HVV timetable
+      if(sd){ b.deps = sd; b.error = null; b.mode = "scheduled"; sched++; }
+      else { b.error = err.message; b.mode = "down"; fail++; }
+    }
+  }
+  render();
+  if(sched === 0 && fail === 0) setStatus("ok", "live · updated " + fmtTime(Date.now()));
+  else if(fail === 0)           setStatus("wait", "scheduled · live feed offline");
+  else                          setStatus("bad", "offline — retrying");
+}
+
+setInterval(tickClock, 1000); tickClock();
+setInterval(render, 1000);      // recompute countdowns smoothly between polls
+loadSchedule().finally(poll);   // load the offline timetable, then do the first poll
+setInterval(poll, REFRESH_MS);
+
+renderWeather();                // shows "Loading weather…" until first fetch lands
+fetchWeather();
+setInterval(fetchWeather, WEATHER_REFRESH_MS);
+</script>
+</body>
+</html>
