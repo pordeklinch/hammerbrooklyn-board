@@ -50,8 +50,11 @@
   .footer{grid-area:footer}
   /* wide / landscape monitor: use the width — transit left, weather right */
   @media (min-width:880px){
+    html,body{height:100%;overflow:hidden}      /* kiosk: no scrollbars, scale to fit */
+    body{align-items:center;justify-content:center;padding:10px}
     .board{
-      max-width:1180px;column-gap:20px;
+      width:1180px;max-width:1180px;column-gap:20px;
+      transform-origin:center center;
       grid-template-columns:minmax(360px,1.05fr) 1fr;
       grid-template-areas:
         "top      top"
@@ -80,10 +83,9 @@
   }
   .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
     text-transform:uppercase;letter-spacing:.16em}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);
-    box-shadow:0 0 0 0 rgba(61,220,132,.6);animation:pulse 2.4s infinite}
-  .dot.bad{background:var(--warn);animation:none}
-  .dot.wait{background:var(--amber);animation:none}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ok)}
+  .dot.bad{background:var(--warn)}
+  .dot.wait{background:var(--amber)}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,132,.5)}70%{box-shadow:0 0 0 7px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}
 
   /* ---- a board section ---- */
@@ -118,10 +120,8 @@
     align-items:center;gap:14px;
     padding:12px 18px;
     border-bottom:1px solid var(--hair);
-    animation:fade .35s ease;
   }
   .row:last-child{border-bottom:none}
-  @keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 
   /* line badge — authentic HVV roundels */
   .badge{
@@ -131,6 +131,8 @@
   }
   .badge.s{background:var(--s-green)}
   .badge.bus{background:var(--bus-red);border-radius:50px}
+  .badge.line-s3{background:#8a3fb0}      /* S3 — white on purple */
+  .badge.line-s5{background:#2f9fe0}      /* S5 — white on light blue */
 
   .dest{min-width:0}
   .dest .name{font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -142,7 +144,7 @@
     font-family:"Roboto Mono",monospace;font-weight:700;font-size:28px;line-height:1;
     color:var(--amber);font-variant-numeric:tabular-nums;
   }
-  .when .min.soon{animation:blink 1.1s steps(2,start) infinite}
+  .when .min.soon{color:var(--amber)}
   .when .min.now{color:var(--ok)}
   .when .unit{font-size:11px;color:var(--amber-dim);text-transform:uppercase;letter-spacing:.12em;margin-top:3px}
   .when .sched{font-family:"Roboto Mono",monospace;font-size:12px;color:var(--muted);margin-top:4px}
@@ -519,6 +521,7 @@ function renderWeather(){
   </div>`;
 
   host.innerHTML = weatherCard + buildNowcast(d, cur, off);
+  fitToScreen();
 }
 
 /* ----------------------------- state ----------------------------- */
@@ -575,6 +578,18 @@ function render(){
         ${body}
       </div>`;
   }).join("");
+  fitToScreen();
+}
+
+// Scale the whole board so it fits the screen (wide/kiosk layout only).
+function fitToScreen(){
+  const b = document.querySelector(".board");
+  if(!b) return;
+  if(window.innerWidth < 880){ b.style.transform = "none"; return; }
+  const m = 20;  // small viewport margin
+  const s = Math.min((window.innerWidth - m) / b.offsetWidth,
+                     (window.innerHeight - m) / b.offsetHeight, 2.4);
+  b.style.transform = `scale(${s})`;
 }
 
 function tickClock(){
@@ -666,6 +681,9 @@ setInterval(poll, REFRESH_MS);
 renderWeather();                // shows "Loading weather…" until first fetch lands
 fetchWeather();
 setInterval(fetchWeather, WEATHER_REFRESH_MS);
+
+window.addEventListener("resize", fitToScreen);
+fitToScreen();
 </script>
 </body>
 </html>
