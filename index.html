@@ -439,7 +439,7 @@ async function fetchWeather(){
 }
 
 async function fetchAir(){
-  const url = `https://air-quality.open-meteo.com/v1/air-quality?latitude=${WX_LAT}&longitude=${WX_LON}`
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${WX_LAT}&longitude=${WX_LON}`
     + `&hourly=pm2_5&timeformat=unixtime&timezone=Europe%2FBerlin`;
   try{
     const r = await fetch(url);
@@ -722,10 +722,10 @@ function fitToScreen(){
   const b = document.querySelector(".board");
   if(!b) return;
   if(window.innerWidth < 880){ b.style.transform = "none"; return; }
-  const m = 20;  // small viewport margin
-  const s = Math.min((window.innerWidth - m) / b.offsetWidth,
-                     (window.innerHeight - m) / b.offsetHeight, 2.4);
-  b.style.transform = `scale(${s})`;
+  const m = 16;  // small viewport margin
+  const sx = Math.min((window.innerWidth - m) / b.offsetWidth, 3);
+  const sy = Math.min((window.innerHeight - m) / b.offsetHeight, 3);
+  b.style.transform = `scale(${sx}, ${sy})`;   // independent X/Y: fills width AND height
 }
 
 function tickClock(){
