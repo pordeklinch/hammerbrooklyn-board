@@ -260,7 +260,8 @@
 
 /* ----------------------------- config ----------------------------- */
 const API = "https://v6.db.transport.rest";
-const REFRESH_MS = 30000;       // poll the API every 30s
+/*const REFRESH_MS = 30000;       // poll the API every 30s */
+const REFRESH_MS = 120000;       // poll the API every 2 minutes
 const LOOKAHEAD_MIN = 60;       // fetch this far ahead
 const MAX_ROWS = 3;             // next N departures shown per transit board
 
