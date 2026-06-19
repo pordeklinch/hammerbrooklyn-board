@@ -188,9 +188,12 @@
   /* ---- sun & sky box ---- */
   .tag.sky{background:#c2892f}
   .sky-body{padding:14px 18px 16px}
-  .sun-arc{position:relative}
-  .sun-arc .arc{width:100%;height:auto;display:block}
-  .sun-ends{display:flex;justify-content:space-between;margin-top:-6px}
+  .sun-bar{padding:2px 4px 0}
+  .track{position:relative;height:8px;border-radius:6px;background:var(--surface-2);border:1px solid var(--hair)}
+  .fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;background:linear-gradient(90deg,#e0902a,#ffd23f)}
+  .sun-dot{position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:#ffd23f;
+    box-shadow:0 0 0 4px rgba(255,210,63,.22);transform:translate(-50%,-50%)}
+  .sun-ends{display:flex;justify-content:space-between;margin-top:12px}
   .se{font-family:"Roboto Mono",monospace;font-size:14px;color:var(--ink)}
   .se.r{text-align:right}
   .se small{display:block;font-family:"Barlow Semi Condensed",sans-serif;font-size:10.5px;
@@ -437,7 +440,7 @@ async function fetchWeather(){
 
 async function fetchAir(){
   const url = `https://air-quality.open-meteo.com/v1/air-quality?latitude=${WX_LAT}&longitude=${WX_LON}`
-    + `&current=european_aqi&timezone=Europe%2FBerlin`;
+    + `&hourly=european_aqi&timeformat=unixtime&timezone=Europe%2FBerlin`;
   try{
     const r = await fetch(url);
     if(!r.ok) throw new Error(`air ${r.status}`);
@@ -499,17 +502,19 @@ function buildSky(d, off){
   const p = Math.max(0, Math.min(1, (now - sr) / (ss - sr)));
   const night = now < sr || now > ss;
 
-  // sun-path arc geometry (elliptical, viewBox 0 0 320 96)
-  const cx=160, cy=80, rx=136, ry=66;
-  const th = Math.PI - Math.PI*p;
-  const sx = (cx + rx*Math.cos(th)).toFixed(1), sy = (cy - ry*Math.sin(th)).toFixed(1);
-  const travelled = (!night && p>0 && p<1)
-    ? `<path d="M24,80 A${rx},${ry} 0 0 1 ${sx},${sy}" fill="none" stroke="#f5b53e" stroke-width="3" stroke-linecap="round"/>` : "";
-  const sun = `<circle cx="${sx}" cy="${sy}" r="7" fill="${night?'#5a6473':'#ffd23f'}" ${night?'':'stroke="rgba(255,210,63,.3)" stroke-width="6"'}/>`;
-  const arc = `<svg viewBox="0 0 320 96" class="arc">
-      <line x1="14" y1="80" x2="306" y2="80" stroke="var(--hair)" stroke-width="1"/>
-      <path d="M24,80 A${rx},${ry} 0 0 1 296,80" fill="none" stroke="var(--hair-strong)" stroke-width="2" stroke-dasharray="3 5"/>
-      ${travelled}${sun}</svg>`;
+  // slim sun-track bar
+  const fillW = (p * 100).toFixed(1);
+  const pos = Math.max(2, Math.min(98, p * 100));        // keep the dot on the bar
+  const bar = `<div class="sun-bar">
+        <div class="track">
+          <div class="fill" style="width:${fillW}%"></div>
+          <div class="sun-dot" style="left:${pos}%;background:${night?'#5a6473':'#ffd23f'}"></div>
+        </div>
+        <div class="sun-ends">
+          <span class="se">↑ ${localHM(sr, off)}<small>sunrise</small></span>
+          <span class="se r">↓ ${localHM(ss, off)}<small>sunset</small></span>
+        </div>
+      </div>`;
 
   const dl = daily.daylight_duration ? daily.daylight_duration[0] : (ss - sr);
   const dh = Math.floor(dl/3600), dm = Math.round((dl%3600)/60);
@@ -525,12 +530,18 @@ function buildSky(d, off){
   const uvPeak = daily.uv_index_max ? daily.uv_index_max[0] : uvNow;
   const [uvLabel, uvCol] = uvInfo(uvNow);
 
-  // Air quality
+  // Air quality — read the current hour from the hourly series
   let aqiHtml = `<div class="t-val" style="color:var(--muted)">–</div><div class="t-sub">unavailable</div>`;
-  if(air.data && air.data.current && typeof air.data.current.european_aqi === "number"){
-    const v = Math.round(air.data.current.european_aqi);
-    const [al, ac] = aqiInfo(v);
-    aqiHtml = `<div class="t-val" style="color:${ac}">${v}</div><div class="t-sub">${al}</div>`;
+  if(air.data && air.data.hourly && Array.isArray(air.data.hourly.european_aqi)){
+    const at = air.data.hourly.time, av = air.data.hourly.european_aqi;
+    let i = at.findIndex(t => t > now);
+    i = (i <= 0) ? 0 : i - 1;
+    const v = av[i];
+    if(typeof v === "number"){
+      const r = Math.round(v);
+      const [al, ac] = aqiInfo(r);
+      aqiHtml = `<div class="t-val" style="color:${ac}">${r}</div><div class="t-sub">${al}</div>`;
+    }
   }
 
   const mp = moonPhase(new Date());
@@ -541,13 +552,7 @@ function buildSky(d, off){
       <span class="stop">${dh} h ${dm} min daylight</span>
     </div>
     <div class="sky-body">
-      <div class="sun-arc">
-        ${arc}
-        <div class="sun-ends">
-          <span class="se">↑ ${localHM(sr, off)}<small>sunrise</small></span>
-          <span class="se r">↓ ${localHM(ss, off)}<small>sunset</small></span>
-        </div>
-      </div>
+      ${bar}
       <div class="sky-tiles">
         <div class="tile"><div class="t-label">UV index</div><div class="t-val" style="color:${uvCol}">${Math.round(uvNow)}</div><div class="t-sub">${uvLabel} · peak ${Math.round(uvPeak)}</div></div>
         <div class="tile"><div class="t-label">Air quality</div>${aqiHtml}</div>
