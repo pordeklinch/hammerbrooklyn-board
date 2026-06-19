@@ -722,10 +722,10 @@ function fitToScreen(){
   const b = document.querySelector(".board");
   if(!b) return;
   if(window.innerWidth < 880){ b.style.transform = "none"; return; }
-  const m = 16;  // small viewport margin
-  const sx = Math.min((window.innerWidth - m) / b.offsetWidth, 3);
-  const sy = Math.min((window.innerHeight - m) / b.offsetHeight, 3);
-  b.style.transform = `scale(${sx}, ${sy})`;   // independent X/Y: fills width AND height
+  const m = 16;  // small, even margin on whichever side doesn't match the aspect ratio
+  const s = Math.min((window.innerWidth - m) / b.offsetWidth,
+                     (window.innerHeight - m) / b.offsetHeight, 3);
+  b.style.transform = `scale(${s})`;   // uniform: keeps every shape proportionally correct
 }
 
 function tickClock(){
