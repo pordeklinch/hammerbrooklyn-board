@@ -547,7 +547,7 @@ function rowHtml(b, d){
   const plat = d.platform ? `<div class="plat">Platform ${d.platform}</div>` : "";
   return `
     <div class="row">
-      <div class="badge ${b.kind}">${d.line.replace(/^Bus\s*/i,"").replace(/^Metrobus\s*/i,"")}</div>
+      <div class="badge ${b.kind} line-${d.line.toLowerCase()}">${d.line.replace(/^Bus\s*/i,"").replace(/^Metrobus\s*/i,"")}</div>
       <div class="dest">
         <div class="name ${d.cancelled?"cancel":""}">${d.direction}</div>
         ${plat}
