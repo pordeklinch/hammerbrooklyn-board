@@ -206,6 +206,12 @@
   .t-val.moon{font-size:22px}
   .t-sub{font-size:11.5px;color:var(--muted);margin-top:4px}
 
+  /* ---- room air quality (Tuya sensor) ---- */
+  .tag.room{background:#2f9e8f}
+  .room-body{padding:14px 18px 16px}
+  .room-tiles{display:flex;flex-wrap:wrap;gap:10px}
+  .room-tiles .tile{flex:1 1 27%;min-width:84px}
+
   .empty{padding:22px 18px;color:var(--muted);font-size:16px}
   .footer{margin-top:10px;text-align:center;color:var(--muted);font-size:12px;letter-spacing:.06em}
   .footer a{color:var(--muted)}
@@ -253,6 +259,9 @@
     .nc-body{padding:10px 16px 12px}
     .nc-head{margin-bottom:8px}
     .nc-track{height:46px}
+
+    .room-body{padding:12px 16px 14px}
+    .room-tiles{gap:8px}
   }
   /* ---- clock mode (full-screen LED clock, red, 24h) ---- */
   body.mode-clock .board{display:none}
@@ -328,7 +337,10 @@
       </div>
     </div>
 
-    <div id="weather"></div>
+    <div id="weather">
+      <div id="skyWeatherMount"></div>
+      <div id="roomAirMount"></div>
+    </div>
     <div id="sections"></div>
 
     <div class="footer">
@@ -382,6 +394,7 @@ const WX_NOWCAST_STEPS = 8;                 // 15-min nowcast slots to show (8 =
    Generate hammerbrook_schedule.json with build_hvv_fallback.py and place it
    next to this file (or point SCHEDULE_URL at the hosted copy). */
 const SCHEDULE_URL = "hammerbrook_schedule.json";
+const ROOM_AIR_URL = "room_air.json";   // written every ~10 min by the Tuya GitHub Action
 const SCHED_LOOK_MIN = 90;                  // how far ahead to show scheduled departures
 
 const BOARDS = [
@@ -563,6 +576,27 @@ function pm25Info(v){   // PM2.5 µg/m³ -> [label, colour] (IQAir / US-AQI styl
   if(v <= 250.4) return ["Very unhealthy","#b06cd6"];
   return ["Hazardous","#c0556a"];
 }
+function co2Info(v){   // ppm -> [label, colour] (common indoor-air guidance)
+  if(v < 800)  return ["Good","#4ec85a"];
+  if(v < 1200) return ["Stuffy","#f3d63f"];
+  if(v < 2000) return ["Poor","#ff9e42"];
+  return ["Bad","#fa5a52"];
+}
+function formaldehydeInfo(v){   // mg/m³ -> [label, colour] (WHO 0.1 mg/m³ 30-min guideline as anchor)
+  if(v <= 0.1) return ["Good","#4ec85a"];
+  if(v <= 0.3) return ["Moderate","#f3d63f"];
+  if(v <= 0.5) return ["Elevated","#ff9e42"];
+  return ["High","#fa5a52"];
+}
+function tvocInfo(v){   // mg/m³ -> [label, colour] (common consumer-sensor bands)
+  if(v <= 0.3) return ["Good","#4ec85a"];
+  if(v <= 0.5) return ["Acceptable","#f3d63f"];
+  if(v <= 1.0) return ["Moderate","#ff9e42"];
+  return ["Poor","#fa5a52"];
+}
+function comfortInfo(v, lo, hi){   // generic "in/out of comfortable band" -> colour only
+  return (v >= lo && v <= hi) ? "#4ec85a" : "#f3d63f";
+}
 function moonPhase(date){
   const syn = 29.530588853;                      // synodic month (days)
   const ref = Date.UTC(2000,0,6,18,14) / 86400000;
@@ -693,7 +727,7 @@ function buildNowcast(d, cur, off){
 }
 
 function renderWeather(){
-  const host = document.getElementById("weather");
+  const host = document.getElementById("skyWeatherMount");
   const d = weather.data;
   if(!d){
     host.innerHTML = `<div class="section">
@@ -994,6 +1028,75 @@ setInterval(render, 1000);      // recompute countdowns smoothly between polls
 loadSchedule().finally(poll);   // load the offline timetable, then do the first poll
 setInterval(poll, REFRESH_MS);
 
+/* ----------------------------- room air (Tuya sensor) ----------------------------- */
+let roomAir = { data:null, error:null };
+
+async function fetchRoomAir(){
+  try{
+    const r = await fetch(ROOM_AIR_URL, { cache: "no-store" });
+    if(!r.ok) throw new Error(`room air ${r.status}`);
+    roomAir = { data: await r.json(), error: null };
+  }catch(err){
+    roomAir = { data: roomAir.data, error: err.message };   // keep last known reading
+  }
+  renderRoomAir();
+}
+
+function agoStr(iso){
+  if(!iso) return "";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if(mins < 1) return "just now";
+  if(mins === 1) return "1 min ago";
+  if(mins < 60) return `${mins} min ago`;
+  return `${Math.round(mins/60)} h ago`;
+}
+
+function renderRoomAir(){
+  const host = document.getElementById("roomAirMount");
+  const d = roomAir.data;
+  if(!d || !d.values){
+    host.innerHTML = `<div class="section">
+      <div class="section-head"><span class="tag room">Room Air</span><span class="stop">Hammerbrook</span></div>
+      <div class="empty">${roomAir.error ? "Sensor unavailable — "+roomAir.error : "Loading room air…"}</div>
+    </div>`;
+    return;
+  }
+  const v = d.values;
+  const tile = (label, val, unit, info) => {
+    if(val === undefined || val === null){
+      return `<div class="tile"><div class="t-label">${label}</div><div class="t-val" style="color:var(--muted)">–</div><div class="t-sub">n/a</div></div>`;
+    }
+    const [lbl, col] = info ? info(val) : [null, null];
+    return `<div class="tile">
+      <div class="t-label">${label}</div>
+      <div class="t-val" style="color:${col || 'var(--ink)'}">${val}${unit||""}</div>
+      <div class="t-sub" style="color:${col || 'var(--muted)'}">${lbl || ""}</div>
+    </div>`;
+  };
+
+  const tComfort = v.temperature !== undefined ? comfortInfo(v.temperature, 19, 24) : null;
+  const hComfort = v.humidity !== undefined ? comfortInfo(v.humidity, 30, 60) : null;
+
+  host.innerHTML = `<div class="section">
+    <div class="section-head">
+      <span class="tag room">Room Air</span>
+      <span class="stop">Hammerbrook${d.updated ? " · " + agoStr(d.updated) : ""}${roomAir.error ? " · last known" : ""}</span>
+    </div>
+    <div class="room-body">
+      <div class="room-tiles">
+        ${tile("PM2.5", v.pm25, "", pm25Info)}
+        ${tile("CO2", v.co2, " ppm", co2Info)}
+        ${tile("Formald.", v.formaldehyde, "", formaldehydeInfo)}
+        ${tile("TVOC", v.tvoc, "", tvocInfo)}
+        ${(() => { const r = tile("Temp", v.temperature, "°", null);
+                    return tComfort ? r.replace('var(--ink)', tComfort) : r; })()}
+        ${(() => { const r = tile("Humidity", v.humidity, "%", null);
+                    return hComfort ? r.replace('var(--ink)', hComfort) : r; })()}
+      </div>
+    </div>
+  </div>`;
+}
+
 renderWeather();                // shows "Loading weather…" until first fetch lands
 fetchWeather();
 fetchAir();
@@ -1003,6 +1106,10 @@ setInterval(fetchAir, WEATHER_REFRESH_MS);
 window.addEventListener("resize", fitToScreen);
 fitToScreen();
 initClockMode();
+
+renderRoomAir();
+fetchRoomAir();
+setInterval(fetchRoomAir, WEATHER_REFRESH_MS);
 </script>
 </body>
 </html>
