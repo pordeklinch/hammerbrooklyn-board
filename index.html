@@ -43,24 +43,25 @@
   .board{
     width:100%;max-width:720px;
     display:grid;grid-template-columns:1fr;
-    grid-template-areas:"top" "sections" "weather" "footer";
+    grid-template-areas:"top" "sections" "sky" "weather" "footer";
   }
   .top{grid-area:top}
   #sections{grid-area:sections}   /* transit first, so it's always on screen */
+  #sky{grid-area:sky}
   #weather{grid-area:weather}
   .footer{grid-area:footer}
-  /* wide / landscape monitor: use the width — transit left, weather right */
+  /* wide / landscape monitor: spread across three columns to use the width */
   @media (min-width:880px){
     html,body{height:100%;overflow:hidden}      /* kiosk: no scrollbars, scale to fit */
     body{align-items:center;justify-content:center;padding:10px}
     .board{
-      width:1180px;max-width:1180px;column-gap:20px;
+      width:1180px;max-width:1180px;column-gap:18px;
       transform-origin:center center;
-      grid-template-columns:minmax(360px,1.05fr) 1fr;
+      grid-template-columns:minmax(330px,1.05fr) minmax(260px,0.92fr) minmax(260px,0.92fr);
       grid-template-areas:
-        "top      top"
-        "sections weather"
-        "footer   footer";
+        "top      top      top"
+        "sections sky      weather"
+        "footer   footer   footer";
     }
   }
 
@@ -337,9 +338,12 @@
       </div>
     </div>
 
-    <div id="weather">
-      <div id="skyWeatherMount"></div>
+    <div id="sky">
+      <div id="skyMount"></div>
       <div id="roomAirMount"></div>
+    </div>
+    <div id="weather">
+      <div id="weatherNowcastMount"></div>
     </div>
     <div id="sections"></div>
 
@@ -727,12 +731,18 @@ function buildNowcast(d, cur, off){
 }
 
 function renderWeather(){
-  const host = document.getElementById("skyWeatherMount");
+  const skyHost = document.getElementById("skyMount");
+  const wxHost = document.getElementById("weatherNowcastMount");
   const d = weather.data;
   if(!d){
-    host.innerHTML = `<div class="section">
+    const msg = `<div class="empty">${weather.error ? "Weather unavailable — "+weather.error : "Loading weather…"}</div>`;
+    skyHost.innerHTML = `<div class="section">
+      <div class="section-head"><span class="tag sky">Sun &amp; Sky</span><span class="stop">${WX_NAME}</span></div>
+      ${msg}
+    </div>`;
+    wxHost.innerHTML = `<div class="section">
       <div class="section-head"><span class="tag wx">Weather</span><span class="stop">${WX_NAME}</span></div>
-      <div class="empty">${weather.error ? "Weather unavailable — "+weather.error : "Loading weather…"}</div>
+      ${msg}
     </div>`;
     return;
   }
@@ -774,7 +784,8 @@ function renderWeather(){
     </div>
   </div>`;
 
-  host.innerHTML = buildSky(d, off) + weatherCard + buildNowcast(d, cur, off);
+  skyHost.innerHTML = buildSky(d, off);
+  wxHost.innerHTML = weatherCard + buildNowcast(d, cur, off);
   fitToScreen();
 }
 
