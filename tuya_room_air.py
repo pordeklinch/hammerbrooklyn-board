@@ -57,17 +57,17 @@ CODE_MAP = {
     "va_humidity": "humidity",
 }
 
-# Some Tuya DPs report a scaled integer (e.g. 268 meaning 26.8). Confirmed from
-# a real reading: temp_current/va_temperature and humidity_value/va_humidity
-# both need /10 (268 -> 26.8 C, 521 -> 52.1% -- the unscaled values would be
-# physically impossible, so this one's certain). ch2o_value's scale is a
-# reasonable guess (Tuya commonly reports formaldehyde in units of 0.01 mg/m3)
-# but NOT confirmed -- check the device's "scale" field under the Functions
-# tab on the Tuya IoT Platform if this seems off, and adjust here.
+# Some Tuya DPs report a scaled integer (e.g. 268 meaning 26.8). All four of
+# these are now confirmed against real readings from this device:
+#   temp_current/va_temperature  -> /10   (268 -> 26.8 C)
+#   humidity_value/va_humidity   -> /10   (521 -> 52.1%)
+#   ch2o_value (formaldehyde)    -> /1000   (3 -> 0.003 mg/m3)
+#   voc_value (tvoc)             -> /1000 (17 -> 0.017 mg/m3)
 SCALE_MAP = {
     "temperature": 10,
     "humidity": 10,
-    "formaldehyde": 100,   # best guess, not yet confirmed -- see note above
+    "formaldehyde": 10,
+    "tvoc": 1000,
 }
 
 
