@@ -66,7 +66,7 @@ CODE_MAP = {
 SCALE_MAP = {
     "temperature": 10,
     "humidity": 10,
-    "formaldehyde": 10,
+    "formaldehyde": 1000,
     "tvoc": 1000,
 }
 
