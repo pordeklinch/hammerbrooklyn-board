@@ -57,6 +57,19 @@ CODE_MAP = {
     "va_humidity": "humidity",
 }
 
+# Some Tuya DPs report a scaled integer (e.g. 268 meaning 26.8). Confirmed from
+# a real reading: temp_current/va_temperature and humidity_value/va_humidity
+# both need /10 (268 -> 26.8 C, 521 -> 52.1% -- the unscaled values would be
+# physically impossible, so this one's certain). ch2o_value's scale is a
+# reasonable guess (Tuya commonly reports formaldehyde in units of 0.01 mg/m3)
+# but NOT confirmed -- check the device's "scale" field under the Functions
+# tab on the Tuya IoT Platform if this seems off, and adjust here.
+SCALE_MAP = {
+    "temperature": 10,
+    "humidity": 10,
+    "formaldehyde": 100,   # best guess, not yet confirmed -- see note above
+}
+
 
 def _sha256_hex(body: bytes) -> str:
     return hashlib.sha256(body).hexdigest()
@@ -117,7 +130,11 @@ def main():
     for item in raw:
         friendly = CODE_MAP.get(item["code"])
         if friendly:
-            values[friendly] = item["value"]
+            v = item["value"]
+            divisor = SCALE_MAP.get(friendly)
+            if divisor and isinstance(v, (int, float)):
+                v = round(v / divisor, 2)
+            values[friendly] = v
 
     out = {
         "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
