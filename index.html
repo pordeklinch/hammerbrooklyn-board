@@ -268,18 +268,39 @@
   #clockOverlay .wx-corner svg{width:46px;height:46px;color:#ff2d2d;filter:drop-shadow(0 0 6px rgba(255,45,45,.6))}
   #clockOverlay .wx-corner .wx-temp{font-size:28px;font-weight:bold;text-shadow:0 0 8px rgba(255,45,45,.85),0 0 18px rgba(255,45,45,.5)}
 
-  #clockOverlay .secs-corner{position:absolute;top:6%;right:4.5%;font-size:4vw;font-weight:bold;opacity:.85;
-    text-shadow:0 0 8px rgba(255,45,45,.8),0 0 18px rgba(255,45,45,.4)}
-
-  #clockOverlay .time-main{
-    font-size:21vw;font-weight:bold;line-height:1;letter-spacing:4px;
-    text-shadow:0 0 14px rgba(255,45,45,.9),0 0 34px rgba(255,45,45,.55),0 0 60px rgba(255,45,45,.3);
-  }
-
-  #clockOverlay .date-corner{position:absolute;bottom:6%;left:4%;font-size:2.4vw;font-weight:bold;
+  #clockOverlay .secs-corner{position:absolute;top:6%;right:4.5%}
+  #clockOverlay .date-corner{position:absolute;bottom:6%;left:4%}
+  #clockOverlay .day-corner{position:absolute;bottom:6%;right:4%;font-size:2.2vw;font-weight:bold;
     letter-spacing:3px;opacity:.9;text-shadow:0 0 8px rgba(255,45,45,.7),0 0 16px rgba(255,45,45,.4)}
-  #clockOverlay .day-corner{position:absolute;bottom:6%;right:4%;font-size:2.4vw;font-weight:bold;
-    letter-spacing:3px;opacity:.9;text-shadow:0 0 8px rgba(255,45,45,.7),0 0 16px rgba(255,45,45,.4)}
+
+  /* ---- 7-segment LED digit component ---- */
+  .dseg{display:inline-flex;align-items:center;gap:0.6vw}
+  .dseg.lg .digit{width:9vw;height:16vw;margin:0 0.15vw}
+  .dseg.md .digit{width:1vw;height:1.8vw;margin:0 0.1vw}
+  .dseg.sm .digit{width:1.7vw;height:3vw;margin:0 0.1vw}
+  .digit{position:relative;display:inline-block}
+  .digit .seg{position:absolute;background:#3a0c0c;transition:background .15s}
+  .digit .seg.on{background:#ff2d2d;box-shadow:0 0 6px rgba(255,45,45,.9),0 0 16px rgba(255,45,45,.5)}
+  .digit .seg.a,.digit .seg.g,.digit .seg.d{left:16%;width:68%;height:10%;
+    clip-path:polygon(10% 0%,90% 0%,100% 50%,90% 100%,10% 100%,0% 50%)}
+  .digit .seg.a{top:0}
+  .digit .seg.g{top:45%}
+  .digit .seg.d{top:90%}
+  .digit .seg.f,.digit .seg.b,.digit .seg.e,.digit .seg.c{width:13%;height:42%;
+    clip-path:polygon(0% 8%,50% 0%,100% 8%,100% 92%,50% 100%,0% 92%)}
+  .digit .seg.f{left:0;top:5%}
+  .digit .seg.e{left:0;top:53%}
+  .digit .seg.b{left:87%;top:5%}
+  .digit .seg.c{left:87%;top:53%}
+
+  .colon{display:inline-flex;flex-direction:column;justify-content:center;gap:18%;align-self:center}
+  .dseg.lg .colon{height:16vw}
+  .dseg.md .colon{height:1.8vw}
+  .dseg.sm .colon{height:3vw}
+  .colon .dot{width:1vw;height:1vw;border-radius:50%;background:#ff2d2d;box-shadow:0 0 6px rgba(255,45,45,.9)}
+  .dseg.sm .colon .dot, .dseg.md .colon .dot{width:0.3vw;height:0.3vw}
+  .dot-single{display:inline-flex;align-items:flex-end;align-self:center;height:1.8vw;padding-bottom:0.2vw}
+  .dot-single .dot{width:0.45vw;height:0.45vw;border-radius:50%;background:#ff2d2d;box-shadow:0 0 5px rgba(255,45,45,.8)}
 
   .mode-toggle{
     position:fixed;width:44px;height:44px;border-radius:50%;z-index:60;
@@ -328,9 +349,9 @@
       <span id="clockWxIcon"></span>
       <div class="wx-temp" id="clockWxTemp">–</div>
     </div>
-    <div class="secs-corner" id="clockSecs">00</div>
-    <div class="time-main" id="clockTime">00:00</div>
-    <div class="date-corner" id="clockDate">—</div>
+    <div class="secs-corner" id="clockSecs"></div>
+    <div class="time-main" id="clockTime"></div>
+    <div class="date-corner" id="clockDate"></div>
     <div class="day-corner" id="clockDay">—</div>
     <div class="mode-toggle" id="toDashBtn" title="Switch to dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -813,13 +834,30 @@ function tickClock(){
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
-function updateClockOverlay(d){
-  document.getElementById("clockTime").textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  document.getElementById("clockSecs").textContent = pad2(d.getSeconds());
+/* ----------------------------- 7-segment LED digit renderer ----------------------------- */
+const SEG_MAP = {'0':'abcdef','1':'bc','2':'abged','3':'abgcd','4':'fgbc',
+  '5':'afgcd','6':'afgecd','7':'abc','8':'abcdefg','9':'abcdfg',' ':''};
 
-  const months = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+function digitEl(ch){
+  const on = new Set((SEG_MAP[ch]||'').split(''));
+  const segs = ['a','b','c','d','e','f','g'].map(s=>`<div class="seg ${s} ${on.has(s)?'on':''}"></div>`).join('');
+  return `<div class="digit">${segs}</div>`;
+}
+function dsegHTML(str){          // digits + ':' (colon) + '.' (single separator dot)
+  return str.split('').map(ch=>{
+    if(ch===':') return '<span class="colon"><span class="dot"></span><span class="dot"></span></span>';
+    if(ch==='.') return '<span class="dot-single"><span class="dot"></span></span>';
+    return digitEl(ch);
+  }).join('');
+}
+
+function updateClockOverlay(d){
+  document.getElementById("clockTime").innerHTML = `<div class="dseg lg">${dsegHTML(`${pad2(d.getHours())}:${pad2(d.getMinutes())}`)}</div>`;
+  document.getElementById("clockSecs").innerHTML = `<div class="dseg sm">${dsegHTML(pad2(d.getSeconds()))}</div>`;
+
   const days = ["SUNDAY","MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY"];
-  document.getElementById("clockDate").textContent = `${months[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}`;
+  const dateNum = `${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.${d.getFullYear()}`;
+  document.getElementById("clockDate").innerHTML = `<div class="dseg md">${dsegHTML(dateNum)}</div>`;
   document.getElementById("clockDay").textContent = days[d.getDay()];
 
   const cur = weather.data && weather.data.current;
