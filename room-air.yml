@@ -1,0 +1,35 @@
+name: Update room air quality
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 min; GitHub may delay this somewhat under load
+  workflow_dispatch: {}       # lets you trigger it manually from the Actions tab to test
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch sensor reading from Tuya
+        env:
+          TUYA_API_BASE: ${{ secrets.TUYA_API_BASE }}
+          TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
+          TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
+          TUYA_DEVICE_ID: ${{ secrets.TUYA_DEVICE_ID }}
+        run: python tuya_room_air.py
+
+      - name: Commit updated reading (only if it changed)
+        run: |
+          git config user.name "room-air-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add room_air.json
+          git diff --staged --quiet || git commit -m "Update room air reading"
+          git push
