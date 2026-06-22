@@ -259,7 +259,9 @@
 
     .nc-body{padding:10px 16px 12px}
     .nc-head{margin-bottom:8px}
-    .nc-track{height:46px}
+    .nc-track{height:46px;max-width:28px}
+    .nc-bars{gap:5px}
+    .nc-time{font-size:9.5px}
 
     .room-body{padding:12px 16px 14px}
     .room-tiles{gap:8px}
@@ -392,7 +394,7 @@ const WX_LAT = 53.5464, WX_LON = 10.0236;   // Hammerbrook (City Süd)
 const WX_NAME = "Hammerbrook (City Süd)";
 const WEATHER_REFRESH_MS = 10 * 60 * 1000;  // weather changes slowly: poll every 10 min
 const WX_HOURS = 6;                         // how many upcoming hours to show
-const WX_NOWCAST_STEPS = 8;                 // 15-min nowcast slots to show (8 = next 2 h)
+const WX_NOWCAST_STEPS = 6;                 // 15-min nowcast slots to show (6 = next 1.5 h; kept low so labels fit the narrower column)
 
 /* offline fallback — scheduled timetable baked from the HVV GTFS feed.
    Generate hammerbrook_schedule.json with build_hvv_fallback.py and place it
@@ -705,6 +707,9 @@ function buildNowcast(d, cur, off){
     return `<div class="nc-slot"><div class="nc-track">${fill}</div><div class="nc-time">${localHM(s.t, off)}</div></div>`;
   }).join("");
 
+  const windowMin = WX_NOWCAST_STEPS * 15;
+  const windowLabel = windowMin % 60 === 0 ? `next ${windowMin/60} hour${windowMin>60?"s":""}` : `next ${windowMin} min`;
+
   let headline, cls;
   if(firstWet === -1){
     headline = "Dry — no rain expected";
@@ -713,12 +718,12 @@ function buildNowcast(d, cur, off){
     headline = `${peakMm < 0.3 ? "Light rain possible" : "Rain likely"} from ${localHM(slots[firstWet].t, off)}`;
     cls = "wet";
   }
-  const sub = peakMm > 0 ? `peak ${peakMm.toFixed(1)} mm / 15 min` : "next 2 hours";
+  const sub = peakMm > 0 ? `peak ${peakMm.toFixed(1)} mm / 15 min` : windowLabel;
 
   return `<div class="section">
     <div class="section-head">
       <span class="tag wx">Rain nowcast</span>
-      <span class="stop">next 2 hours · 15-min steps</span>
+      <span class="stop">${windowLabel} · 15-min steps</span>
     </div>
     <div class="nc-body">
       <div class="nc-head">
@@ -1096,7 +1101,7 @@ function renderRoomAir(){
     <div class="room-body">
       <div class="room-tiles">
         ${tile("PM2.5", v.pm25, "", pm25Info)}
-        ${tile("CO2", v.co2, " ppm", co2Info)}
+        ${tile("CO2", v.co2, "", co2Info)}
         ${tile("Formald.", v.formaldehyde, "", formaldehydeInfo)}
         ${tile("TVOC", v.tvoc, "", tvocInfo)}
         ${(() => { const r = tile("Temp", v.temperature, "°", null);
