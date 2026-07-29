@@ -1,19 +1,19 @@
 {
-  "updated": "2026-07-29T20:30:28Z",
+  "updated": "2026-07-29T20:40:21Z",
   "values": {
-    "pm25": 2,
+    "pm25": 9,
     "temperature": 26.8,
-    "humidity": 54.6,
+    "humidity": 55.8,
     "formaldehyde": 0.01,
-    "tvoc": 0.03,
-    "co2": 385
+    "tvoc": 0.02,
+    "co2": 589
   },
   "raw": {
-    "pm25_value": 2,
+    "pm25_value": 9,
     "temp_current": 268,
-    "humidity_value": 546,
-    "ch2o_value": 10,
-    "voc_value": 25,
-    "co2_value": 385
+    "humidity_value": 558,
+    "ch2o_value": 9,
+    "voc_value": 24,
+    "co2_value": 589
   }
 }
