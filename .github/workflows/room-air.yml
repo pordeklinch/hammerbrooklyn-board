@@ -1,9 +1,16 @@
 name: Update room air quality
 
 on:
-  schedule:
-    - cron: "*/13 * * * *"    # every 13 min; GitHub may delay this somewhat under load
-  workflow_dispatch: {}       # lets you trigger it manually from the Actions tab to test
+  # GitHub's own `schedule:` trigger was unreliable (didn't fire for over an hour
+  # after setup) and, once it did start working, ran ALONGSIDE cron-job.org's
+  # external trigger -- firing the workflow roughly twice as often as intended
+  # and overwhelming GitHub Pages' deployment queue (each commit triggers a
+  # Pages rebuild; Pages only processes one at a time, so overlapping commits
+  # show up as failed/superseded deployments). Triggering is now handled
+  # entirely by an external cron-job.org job calling this workflow's
+  # workflow_dispatch endpoint every 10 minutes -- see the setup notes in
+  # tuya_room_air.py's header comment.
+  workflow_dispatch: {}       # lets cron-job.org (and manual "Run workflow") trigger this
 
 permissions:
   contents: write
